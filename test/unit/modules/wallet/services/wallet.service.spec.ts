@@ -19,7 +19,7 @@ describe('WalletService', () => {
 
   describe('purchase', () => {
     it('calculates total as price times quantity', async () => {
-      const item = new Item('itm_a', 'Item A', 'desc', 250, 'https://example.com/a.png');
+      const item = new Item('itm_a', 'Item A', 'desc', 250, 'https://example.com/a.png', 'negro');
       marketplaceService.findById.mockResolvedValue(item);
       purchaseRepository.save.mockImplementation(async (p) => p);
 
@@ -32,7 +32,7 @@ describe('WalletService', () => {
     });
 
     it('persists the purchase via repository', async () => {
-      const item = new Item('itm_b', 'Item B', 'desc', 50, 'https://example.com/b.png');
+      const item = new Item('itm_b', 'Item B', 'desc', 50, 'https://example.com/b.png', 'rojo');
       marketplaceService.findById.mockResolvedValue(item);
       purchaseRepository.save.mockImplementation(async (p) => p);
 

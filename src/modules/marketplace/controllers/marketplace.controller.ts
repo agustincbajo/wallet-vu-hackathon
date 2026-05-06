@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { MarketplaceService } from '../services/marketplace.service';
 import { ItemOutputDto } from './dtos/item-output.dto';
 
@@ -7,8 +7,8 @@ export class MarketplaceController {
   constructor(private readonly marketplaceService: MarketplaceService) {}
 
   @Get('items')
-  async listItems(): Promise<ItemOutputDto[]> {
-    const items = await this.marketplaceService.findAll();
+  async listItems(@Query('color') color?: string): Promise<ItemOutputDto[]> {
+    const items = await this.marketplaceService.findAll({ color });
     return items.map((item) => ItemOutputDto.fromEntity(item));
   }
 }

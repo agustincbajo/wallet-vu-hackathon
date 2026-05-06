@@ -13,7 +13,7 @@ describe('GET /marketplace/items', () => {
     await app?.close();
   });
 
-  it('returns 200 with mock items', async () => {
+  it('returns 200 with mock items including color', async () => {
     const response = await request(app.getHttpServer()).get('/marketplace/items');
 
     expect(response.status).toBe(200);
@@ -25,7 +25,25 @@ describe('GET /marketplace/items', () => {
       description: expect.any(String),
       price: expect.any(Number),
       imageUrl: expect.any(String),
+      color: expect.any(String),
     });
+  });
+
+  it('filters items by color query param', async () => {
+    const response = await request(app.getHttpServer()).get('/marketplace/items?color=rojo');
+
+    expect(response.status).toBe(200);
+    expect(response.body.length).toBeGreaterThan(0);
+    for (const item of response.body) {
+      expect(item.color).toBe('rojo');
+    }
+  });
+
+  it('returns empty list when no items match the color', async () => {
+    const response = await request(app.getHttpServer()).get('/marketplace/items?color=violeta');
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual([]);
   });
 
   it('propagates traceparent header on response', async () => {

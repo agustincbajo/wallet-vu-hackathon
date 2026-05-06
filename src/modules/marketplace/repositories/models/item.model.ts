@@ -1,5 +1,5 @@
 import { IsInt, IsNotEmpty, IsString, IsUrl, Min, validateOrReject } from 'class-validator';
-import { Column, Entity, PrimaryColumn } from 'typeorm';
+import { Column, Entity, Index, PrimaryColumn } from 'typeorm';
 import { Item } from '../../entities/item.entity';
 
 @Entity({ name: 'items' })
@@ -11,6 +11,7 @@ export class ItemModel {
       description: item.description,
       price: item.price,
       imageUrl: item.imageUrl,
+      color: item.color,
     });
   }
 
@@ -38,8 +39,14 @@ export class ItemModel {
   @IsUrl()
   public imageUrl: string = '';
 
+  @Index('idx_items_color')
+  @Column({ name: 'color', nullable: false })
+  @IsString()
+  @IsNotEmpty()
+  public color: string = '';
+
   async toEntity(): Promise<Item> {
     await validateOrReject(this);
-    return new Item(this.id, this.name, this.description, this.price, this.imageUrl);
+    return new Item(this.id, this.name, this.description, this.price, this.imageUrl, this.color);
   }
 }

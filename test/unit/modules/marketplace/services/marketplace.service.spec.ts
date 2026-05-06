@@ -13,9 +13,27 @@ describe('MarketplaceService', () => {
     service = new MarketplaceService(repository);
   });
 
+  describe('findAll', () => {
+    it('forwards empty filter to repository when no color is given', async () => {
+      repository.findAll.mockResolvedValue([]);
+
+      await service.findAll();
+
+      expect(repository.findAll).toHaveBeenCalledWith({});
+    });
+
+    it('forwards color filter to repository', async () => {
+      repository.findAll.mockResolvedValue([]);
+
+      await service.findAll({ color: 'rojo' });
+
+      expect(repository.findAll).toHaveBeenCalledWith({ color: 'rojo' });
+    });
+  });
+
   describe('findById', () => {
     it('returns item when repository finds it', async () => {
-      const item = new Item('itm_x', 'Item X', 'desc', 100, 'https://example.com/x.png');
+      const item = new Item('itm_x', 'Item X', 'desc', 100, 'https://example.com/x.png', 'negro');
       repository.findById.mockResolvedValue(item);
 
       const result = await service.findById('itm_x');
@@ -55,6 +73,7 @@ describe('MarketplaceService', () => {
       const seeded = repository.saveMany.mock.calls[0][0];
       expect(seeded.length).toBeGreaterThan(0);
       expect(seeded[0]).toBeInstanceOf(Item);
+      expect(seeded[0].color).toBeTruthy();
     });
 
     it('skips seeding when repository already has items', async () => {

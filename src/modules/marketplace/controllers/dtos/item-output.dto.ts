@@ -8,6 +8,7 @@ export class ItemOutputDto {
       description: item.description,
       price: item.price,
       imageUrl: item.imageUrl,
+      color: item.color,
     });
   }
 
@@ -16,4 +17,5 @@ export class ItemOutputDto {
   description!: string;
   price!: number;
   imageUrl!: string;
+  color!: string;
 }

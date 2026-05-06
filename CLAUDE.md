@@ -23,7 +23,7 @@ Antes de modificar código, leer reglas en `.claude/rules/`. Aplican a todo `*.t
 
 - `GET /health` — liveness
 - `GET /readiness` — readiness
-- `GET /marketplace/items` — listar items mockeados
+- `GET /marketplace/items?color=<color>` — listar zapatillas mockeadas (filtrable por color)
 - `POST /wallet/purchases` — comprar (`{ itemId, quantity }`)
 
 ## Estructura

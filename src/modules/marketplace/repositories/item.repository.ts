@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { FindOptionsWhere, Repository } from 'typeorm';
 import { RepositoryException } from '../../../infrastructure/exceptions';
 import { Item } from '../entities/item.entity';
 import { ItemModel } from './models/item.model';
@@ -12,9 +12,13 @@ export class ItemRepository {
     private readonly repository: Repository<ItemModel>,
   ) {}
 
-  async findAll(): Promise<Item[]> {
+  async findAll(filter: { color?: string } = {}): Promise<Item[]> {
     try {
-      const models = await this.repository.find();
+      const where: FindOptionsWhere<ItemModel> = {};
+      if (filter.color) {
+        where.color = filter.color;
+      }
+      const models = await this.repository.find({ where });
       return Promise.all(models.map((model) => model.toEntity()));
     } catch (error) {
       throw new RepositoryException('Failed to list items', {
@@ -22,6 +26,7 @@ export class ItemRepository {
         code: 'ITEM_REPOSITORY_FIND_ALL_FAILED',
         severity: 'recoverable',
         retryable: true,
+        meta: { color: filter.color },
       });
     }
   }
