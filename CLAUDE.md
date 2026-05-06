@@ -25,6 +25,9 @@ Antes de modificar código, leer reglas en `.claude/rules/`. Aplican a todo `*.t
 - `GET /readiness` — readiness
 - `GET /marketplace/items?color=<color>` — listar zapatillas mockeadas (filtrable por color)
 - `POST /wallet/purchases` — comprar (`{ itemId, quantity }`)
+- `GET /wallet/purchases?page=&limit=&itemId=` — listar compras paginado (filtrable por `itemId`)
+
+Spec autoritativo: [`docs/openapi.yaml`](docs/openapi.yaml). Ejemplos cURL: [`README.md`](README.md).
 
 ## Estructura
 
@@ -50,9 +53,12 @@ test/
 ```bash
 npm install
 npm run start:dev          # http://localhost:3000
+npm run build              # compilar a dist/
 npm test                   # unit
 npm run test:e2e           # e2e
 npm run test:all           # ambos + coverage
+npm run lint               # eslint src/ test/
+npm run lint:fix           # eslint --fix
 ```
 
 ## Migrations
