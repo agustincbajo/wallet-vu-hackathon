@@ -1,0 +1,8 @@
+node_modules/
+dist/
+coverage/
+*.log
+.DS_Store
+
+# Skill privado (contiene API token de Plane, no compartir)
+.claude/skills/plane-create-ticket-vu/
