@@ -1,0 +1,428 @@
+openapi: 3.0.3
+info:
+  title: Wallet VU Hackathon API
+  version: 0.1.0
+  description: |
+    API mock para hackathon. Combina un marketplace simple de zapatillas
+    con un wallet que registra compras. Sin autenticación, sin scoping
+    por usuario. Datos persistidos en SQLite in-memory por defecto
+    (se resetean en cada redeploy).
+
+    **Repositorio:** https://github.com/agustincbajo/wallet-vu-hackathon
+
+  contact:
+    name: Marcelo Luksenberg
+    email: marcelo.luksenberg@modo.com.ar
+servers:
+  - url: https://wallet-vu-hackathon-production.up.railway.app
+    description: Producción (Railway)
+  - url: http://localhost:3000
+    description: Local
+
+tags:
+  - name: health
+    description: Liveness y readiness probes para orquestadores.
+  - name: marketplace
+    description: Catálogo de zapatillas mockeadas, filtrable por color.
+  - name: wallet
+    description: Registro y consulta de compras del wallet.
+
+paths:
+  /health:
+    get:
+      tags: [health]
+      summary: Liveness probe
+      description: |
+        **Objetivo:** Confirmar que el proceso está vivo. No verifica
+        dependencias externas. Usado por Kubernetes/Railway como
+        liveness probe.
+      operationId: getHealth
+      responses:
+        '200':
+          description: Proceso vivo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+              example:
+                status: ok
+      x-curl: |
+        curl -s "$BASE_URL/health"
+
+  /readiness:
+    get:
+      tags: [health]
+      summary: Readiness probe
+      description: |
+        **Objetivo:** Indicar si el servicio puede aceptar tráfico.
+        Verifica que el contexto Nest esté inicializado. Usado como
+        readiness probe.
+      operationId: getReadiness
+      responses:
+        '200':
+          description: Listo para recibir tráfico.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+              example:
+                status: ready
+      x-curl: |
+        curl -s "$BASE_URL/readiness"
+
+  /marketplace/items:
+    get:
+      tags: [marketplace]
+      summary: Listar zapatillas del catálogo
+      description: |
+        **Objetivo:** Devolver el listado de zapatillas disponibles en el
+        marketplace mock. Permite filtrar por color exacto. Si no se
+        provee `color`, devuelve el catálogo completo.
+
+        Los items son seed estático y no cambian en runtime.
+      operationId: listItems
+      parameters:
+        - in: query
+          name: color
+          required: false
+          schema:
+            type: string
+            enum: [negro, blanco, rojo, azul, gris, verde]
+          description: Color exacto a filtrar. Match case-sensitive.
+      responses:
+        '200':
+          description: Listado de items (puede estar vacío si el filtro no matchea).
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Item'
+              example:
+                - id: itm_001
+                  name: Nike Air Max 270
+                  description: Zapatillas urbanas con cámara de aire visible
+                  price: 285000
+                  imageUrl: https://placehold.co/400x400?text=AirMax+Negro
+                  color: negro
+                - id: itm_007
+                  name: Reebok Classic Leather
+                  description: Cuero clásico, calce flexible
+                  price: 115000
+                  imageUrl: https://placehold.co/400x400?text=Classic+Blanco
+                  color: blanco
+      x-curl: |
+        # Listar todos los items
+        curl -s "$BASE_URL/marketplace/items"
+
+        # Filtrar por color
+        curl -s "$BASE_URL/marketplace/items?color=negro"
+
+  /wallet/purchases:
+    post:
+      tags: [wallet]
+      summary: Registrar una compra
+      description: |
+        **Objetivo:** Registrar la compra de un item del marketplace en
+        el wallet. Calcula `totalAmount = item.price * quantity` y
+        persiste la compra con un UUID v4 generado en el servidor.
+
+        Valida que el `itemId` exista en el catálogo (404 si no).
+      operationId: createPurchase
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PurchaseInput'
+            example:
+              itemId: itm_007
+              quantity: 1
+      responses:
+        '201':
+          description: Compra registrada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Purchase'
+              example:
+                id: 3e5db071-9199-4e1d-9e00-877b1c8e5858
+                itemId: itm_007
+                itemName: Reebok Classic Leather
+                quantity: 1
+                totalAmount: 115000
+                createdAt: '2026-05-06T17:56:03.956Z'
+        '400':
+          description: Payload inválido (itemId vacío, quantity fuera de [1..100], tipos incorrectos).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+              example:
+                statusCode: 400
+                error: Bad Request
+                message:
+                  - itemId should not be empty
+                  - quantity must be a positive integer
+        '404':
+          description: El `itemId` no existe en el catálogo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              example:
+                error: ITEM_NOT_FOUND
+                message: Item itm_xxx not found
+      x-curl: |
+        curl -s -X POST "$BASE_URL/wallet/purchases" \
+          -H "Content-Type: application/json" \
+          -d '{"itemId":"itm_007","quantity":1}'
+
+    get:
+      tags: [wallet]
+      summary: Listar compras del wallet
+      description: |
+        **Objetivo:** Devolver el historial de compras registradas en el
+        wallet, paginado y ordenado de más reciente a más antigua
+        (`createdAt DESC`). Permite filtrar por `itemId` para acotar el
+        listado a un producto específico.
+
+        Como la API no tiene auth, la lista es global (todas las
+        compras registradas en el sistema).
+
+        **Ticket:** FEAT-001.
+      operationId: listPurchases
+      parameters:
+        - in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Número de página (1-based). Default 1.
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Tamaño de página. Default 20, máximo 100.
+        - in: query
+          name: itemId
+          required: false
+          schema:
+            type: string
+            maxLength: 64
+          description: Filtra compras por `itemId` exacto. Si no matchea, devuelve `data: []`.
+      responses:
+        '200':
+          description: Listado paginado (puede estar vacío).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseListResponse'
+              examples:
+                empty:
+                  summary: Sin compras registradas
+                  value:
+                    data: []
+                    pagination: { page: 1, limit: 20, total: 0, totalPages: 0 }
+                paginated:
+                  summary: Paginado con orden DESC
+                  value:
+                    data:
+                      - id: 3d1d9a98-4bfd-46ba-8cc8-eeb465beca1c
+                        itemId: itm_001
+                        itemName: Nike Air Max 270
+                        quantity: 3
+                        totalAmount: 855000
+                        createdAt: '2026-05-06T18:18:52.596Z'
+                      - id: bcaf8fdc-db2d-4c7b-87bd-eba9992d70b3
+                        itemId: itm_007
+                        itemName: Reebok Classic Leather
+                        quantity: 2
+                        totalAmount: 230000
+                        createdAt: '2026-05-06T18:18:52.503Z'
+                    pagination: { page: 1, limit: 2, total: 3, totalPages: 2 }
+                filteredByItem:
+                  summary: Filtro por itemId
+                  value:
+                    data:
+                      - id: 3d1d9a98-4bfd-46ba-8cc8-eeb465beca1c
+                        itemId: itm_001
+                        itemName: Nike Air Max 270
+                        quantity: 3
+                        totalAmount: 855000
+                        createdAt: '2026-05-06T18:18:52.596Z'
+                    pagination: { page: 1, limit: 20, total: 1, totalPages: 1 }
+        '400':
+          description: Query params inválidos (`page < 1`, `limit < 1`, `limit > 100`, tipos no convertibles, `itemId` vacío o > 64 chars).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+              examples:
+                pageBelowMin:
+                  value:
+                    statusCode: 400
+                    error: Bad Request
+                    message: [page must not be less than 1]
+                limitTooHigh:
+                  value:
+                    statusCode: 400
+                    error: Bad Request
+                    message: [limit must not be greater than 100]
+      x-curl: |
+        # Defaults (page=1, limit=20)
+        curl -s "$BASE_URL/wallet/purchases"
+
+        # Paginado
+        curl -s "$BASE_URL/wallet/purchases?page=2&limit=20"
+
+        # Filtro por itemId
+        curl -s "$BASE_URL/wallet/purchases?itemId=itm_001"
+
+        # Combinado
+        curl -s "$BASE_URL/wallet/purchases?itemId=itm_001&page=1&limit=5"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          example: ok
+
+    Item:
+      type: object
+      required: [id, name, description, price, imageUrl, color]
+      properties:
+        id:
+          type: string
+          example: itm_007
+        name:
+          type: string
+          example: Reebok Classic Leather
+        description:
+          type: string
+          example: Cuero clásico, calce flexible
+        price:
+          type: integer
+          description: Precio en pesos argentinos (ARS), entero (sin decimales).
+          example: 115000
+        imageUrl:
+          type: string
+          format: uri
+          example: https://placehold.co/400x400?text=Classic+Blanco
+        color:
+          type: string
+          example: blanco
+
+    PurchaseInput:
+      type: object
+      required: [itemId, quantity]
+      properties:
+        itemId:
+          type: string
+          minLength: 1
+          example: itm_007
+        quantity:
+          type: integer
+          minimum: 1
+          maximum: 100
+          example: 1
+
+    Purchase:
+      type: object
+      required: [id, itemId, itemName, quantity, totalAmount, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 3e5db071-9199-4e1d-9e00-877b1c8e5858
+        itemId:
+          type: string
+          example: itm_007
+        itemName:
+          type: string
+          example: Reebok Classic Leather
+        quantity:
+          type: integer
+          minimum: 1
+          example: 1
+        totalAmount:
+          type: integer
+          description: Total en pesos argentinos (`item.price * quantity`).
+          example: 115000
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-05-06T17:56:03.956Z'
+
+    Pagination:
+      type: object
+      required: [page, limit, total, totalPages]
+      properties:
+        page:
+          type: integer
+          minimum: 1
+          example: 1
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          example: 20
+        total:
+          type: integer
+          minimum: 0
+          example: 25
+        totalPages:
+          type: integer
+          minimum: 0
+          description: Cantidad total de páginas. `0` si `total === 0`.
+          example: 2
+
+    PurchaseListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Purchase'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    ValidationError:
+      type: object
+      description: Error emitido por NestJS `ValidationPipe`.
+      required: [statusCode, error, message]
+      properties:
+        statusCode:
+          type: integer
+          example: 400
+        error:
+          type: string
+          example: Bad Request
+        message:
+          type: array
+          items:
+            type: string
+          example: [page must not be less than 1]
+
+    DomainError:
+      type: object
+      description: Error de dominio emitido por `GlobalExceptionFilter` a partir de un `BaseException`.
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          example: ITEM_NOT_FOUND
+        message:
+          type: string
+          example: Item itm_xxx not found
