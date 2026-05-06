@@ -51,4 +51,56 @@ describe('WalletService', () => {
       expect(purchaseRepository.save).not.toHaveBeenCalled();
     });
   });
+
+  describe('listPurchases', () => {
+    it('applies defaults page=1, limit=20 when not provided', async () => {
+      purchaseRepository.findAndCount.mockResolvedValue({ purchases: [], total: 0 });
+
+      const result = await service.listPurchases({});
+
+      expect(purchaseRepository.findAndCount).toHaveBeenCalledWith(
+        { itemId: undefined },
+        { skip: 0, take: 20 },
+      );
+      expect(result.page).toBe(1);
+      expect(result.limit).toBe(20);
+    });
+
+    it('translates page=2, limit=20 into skip=20', async () => {
+      purchaseRepository.findAndCount.mockResolvedValue({ purchases: [], total: 0 });
+
+      await service.listPurchases({ page: 2, limit: 20 });
+
+      expect(purchaseRepository.findAndCount).toHaveBeenCalledWith(
+        { itemId: undefined },
+        { skip: 20, take: 20 },
+      );
+    });
+
+    it('forwards itemId filter to repository', async () => {
+      purchaseRepository.findAndCount.mockResolvedValue({ purchases: [], total: 0 });
+
+      await service.listPurchases({ itemId: 'itm_001' });
+
+      expect(purchaseRepository.findAndCount).toHaveBeenCalledWith(
+        { itemId: 'itm_001' },
+        { skip: 0, take: 20 },
+      );
+    });
+
+    it('returns purchases and total from repository alongside resolved page/limit', async () => {
+      const purchase = new Purchase('p1', 'itm_a', 'A', 1, 100, new Date());
+      purchaseRepository.findAndCount.mockResolvedValue({ purchases: [purchase], total: 7 });
+
+      const result = await service.listPurchases({ page: 1, limit: 5 });
+
+      expect(result).toEqual({ purchases: [purchase], total: 7, page: 1, limit: 5 });
+    });
+
+    it('propagates errors from repository', async () => {
+      purchaseRepository.findAndCount.mockRejectedValue(new Error('db down'));
+
+      await expect(service.listPurchases({})).rejects.toThrow('db down');
+    });
+  });
 });

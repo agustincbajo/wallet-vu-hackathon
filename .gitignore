@@ -6,3 +6,5 @@ coverage/
 
 # Skill privado (contiene API token de Plane, no compartir)
 .claude/skills/plane-create-ticket-vu/
+.claude/mwdd-state.json
+.claude/paused/
